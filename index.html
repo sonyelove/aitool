@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Tool Lab</title>
+<style>
+  :root {
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 40px 16px;
+  }
+  .container { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 28px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+
+  .tool-card {
+    display: block;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform .12s, box-shadow .12s, border-color .12s;
+  }
+  .tool-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(79, 70, 229, 0.12);
+    border-color: var(--primary);
+  }
+  .tool-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: #eef2ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin-bottom: 14px;
+  }
+  .tool-name { font-size: 16px; font-weight: 700; margin: 0 0 6px; }
+  .tool-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 0; }
+
+  .empty-card {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    color: var(--text-muted);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 120px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>AI Tool Lab</h1>
+    <p class="subtitle">직접 만든 도구 목록입니다. 카드를 클릭하면 해당 도구가 열립니다.</p>
+
+    <div class="grid" id="toolGrid"></div>
+  </div>
+
+  <script>
+    // 새 도구를 추가할 때는 이 배열에 한 줄만 추가하면 됩니다.
+    // path는 이 파일(04-build/index.html) 기준 상대 경로입니다.
+    const TOOLS = [
+      {
+        icon: '📄',
+        name: 'PDF All-in-One Tool',
+        desc: 'PDF 분할, 병합, 압축, 편집(회전/삭제/순서변경, 워터마크, 페이지 번호, 텍스트/도장, 하이라이트·가리기)을 한 곳에서.',
+        path: 'pdf-all-in-one/pdf-tool/index.html'
+      },
+      {
+        icon: '🖼️',
+        name: '이미지 PDF 변환기',
+        desc: '여러 장의 이미지를 업로드해 순서를 정하고 하나의 PDF로 합칩니다. 페이지 크기·방향·여백·압축 품질 설정 가능.',
+        path: 'image-to-pdf/index.html'
+      }
+    ];
+
+    const grid = document.getElementById('toolGrid');
+
+    if (TOOLS.length === 0) {
+      grid.innerHTML = '<div class="empty-card">아직 등록된 도구가 없습니다.</div>';
+    } else {
+      TOOLS.forEach(tool => {
+        const a = document.createElement('a');
+        a.className = 'tool-card';
+        a.href = tool.path;
+        a.innerHTML = `
+          <div class="tool-icon">${tool.icon}</div>
+          <h2 class="tool-name">${tool.name}</h2>
+          <p class="tool-desc">${tool.desc}</p>
+        `;
+        grid.appendChild(a);
+      });
+    }
+  </script>
+</body>
+</html>

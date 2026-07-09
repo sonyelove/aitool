@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>이미지 PDF 변환기</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<style>
+  :root {
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --warning: #d97706;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 16px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 20px; }
+
+  .layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card h2 {
+    font-size: 15px;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  /* Dropzone */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone.drag-over { border-color: var(--primary); background: #eef2ff; }
+  .dropzone p { margin: 6px 0; color: var(--text-muted); font-size: 14px; }
+  .dropzone .icon { font-size: 32px; }
+  input[type="file"] { display: none; }
+
+  /* Settings form */
+  .form-group { margin-bottom: 18px; }
+  .form-group:last-child { margin-bottom: 0; }
+  .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .form-group .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  select, input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    background: white;
+    color: var(--text);
+  }
+  select:disabled { background: #f1f5f9; color: #94a3b8; }
+  .filename-wrap { position: relative; }
+  .filename-wrap input { padding-right: 40px; }
+  .filename-wrap .ext { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--text-muted); }
+
+  .toggle-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .toggle-opt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+  }
+  .toggle-opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .toggle-opt.checked { border-color: var(--primary); background: #eef2ff; color: var(--primary); }
+  .toggle-opt.disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .quality-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .quality-badge { font-size: 12px; font-weight: 700; color: var(--primary); background: #eef2ff; padding: 2px 8px; border-radius: 6px; }
+  input[type="range"] { width: 100%; accent-color: var(--primary); cursor: pointer; }
+
+  button.primary {
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+  }
+  button.primary:hover:not(:disabled) { background: var(--primary-dark); }
+  button.primary.btn-active { background: var(--success); }
+  button.primary.btn-active:hover:not(:disabled) { background: #15803d; }
+  button.primary:disabled { background: #cbd5e1; color: #f1f5f9; cursor: not-allowed; }
+
+  /* List controls bar */
+  .list-controls {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .list-controls.show { display: flex; }
+  .list-controls .left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .list-controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; color: var(--text); }
+  .list-controls .hint-text { color: var(--text-muted); font-size: 12px; }
+  .list-controls .divider { color: var(--border); }
+  .btn-clear {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 8px;
+  }
+
+  /* Image grid (thumb-grid style, matching PDF All-in-One Tool) */
+  .thumb-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .empty-hint {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 48px 0;
+  }
+  .empty-hint .icon { font-size: 32px; display: block; margin-bottom: 8px; }
+
+  .image-item {
+    position: relative;
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    cursor: grab;
+    display: flex;
+    flex-direction: column;
+  }
+  .image-item:hover { border-color: #c7d2fe; }
+  .image-item.sortable-ghost { opacity: 0.4; border-color: var(--primary); border-style: dashed; }
+  .image-item .thumb-wrap {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .image-item img { max-width: 100%; max-height: 100%; object-fit: contain; pointer-events: none; }
+  .image-item .item-checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    cursor: pointer;
+  }
+  .image-item .btn-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .1s, background .1s;
+  }
+  .image-item:hover .btn-delete { opacity: 1; }
+  .image-item .btn-delete:hover { background: var(--danger); }
+  .image-item .meta { padding: 8px; border-top: 1px solid var(--border); }
+  .image-item .mname { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .image-item .mdim { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Progress modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s;
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: auto; }
+  .modal-box {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 28px;
+    max-width: 360px;
+    width: calc(100% - 32px);
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  }
+  .modal-box .spinner {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #eef2ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin: 0 auto 14px;
+    animation: spin 1.2s linear infinite;
+  }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .modal-box h3 { font-size: 15px; margin: 0 0 4px; }
+  .modal-box p { font-size: 12px; color: var(--text-muted); margin: 0 0 14px; }
+  .size-bar-track { height: 10px; background: var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+  .size-bar-fill { height: 100%; background: var(--primary); border-radius: 6px; transition: width .15s; width: 0%; }
+  .modal-box .progress-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); }
+
+  /* Toasts */
+  #toastContainer { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+    max-width: 320px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity .25s, transform .25s;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast-success { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+  .toast-warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+  .toast-error { border-color: #fecaca; background: #fef2f2; color: var(--danger); }
+  .toast-info { border-color: var(--border); background: var(--card); color: var(--text); }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>이미지 PDF 변환기</h1>
+    <p class="subtitle">여러 이미지를 올려서 순서를 정하고 하나의 PDF 파일로 합쳐보세요.</p>
+
+    <div class="layout">
+      <!-- 왼쪽: 업로드 및 이미지 목록 -->
+      <div>
+        <div class="card">
+          <h2><span class="step-num">1</span> 이미지 업로드</h2>
+          <div class="dropzone" id="dropzone">
+            <div class="icon">🖼️</div>
+            <p><strong>클릭하여 선택</strong> 또는 이미지를 이곳에 드래그하세요</p>
+            <p>JPG, PNG, WebP 등 여러 장 업로드 가능</p>
+          </div>
+          <input type="file" id="fileInput" multiple accept="image/*">
+        </div>
+
+        <div class="list-controls" id="listControls">
+          <div class="left">
+            <label>
+              <input type="checkbox" id="selectAll" checked>
+              전체 선택 (<span id="selectedCount">0</span>/<span id="totalCount">0</span>)
+            </label>
+            <span class="divider">|</span>
+            <span class="hint-text">🖐️ 드래그로 순서를 변경할 수 있습니다.</span>
+          </div>
+          <button class="btn-clear" id="btnClearAll">🗑️ 목록 비우기</button>
+        </div>
+
+        <div class="card" style="padding:16px;">
+          <div class="thumb-grid" id="imageList">
+            <div class="empty-hint" id="emptyState">
+              <span class="icon">🖼️</span>
+              아직 추가된 이미지가 없습니다.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 설정 패널 -->
+      <div class="card">
+        <h2><span class="step-num">2</span> PDF 변환 설정</h2>
+
+        <div class="form-group">
+          <label for="pageSize">페이지 크기</label>
+          <select id="pageSize">
+            <option value="original">이미지 원본 크기 맞춤</option>
+            <option value="a4" selected>A4 용지 맞춤</option>
+            <option value="letter">Letter 용지 맞춤</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>용지 방향 (A4/Letter인 경우)</label>
+          <div class="toggle-row">
+            <label class="toggle-opt checked" id="orientPortraitWrap">
+              <input type="radio" name="orientation" value="p" checked id="orientPortrait">
+              <span id="lblPortrait">세로</span>
+            </label>
+            <label class="toggle-opt" id="orientLandscapeWrap">
+              <input type="radio" name="orientation" value="l" id="orientLandscape">
+              <span id="lblLandscape">가로</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="margin">여백 (Margin)</label>
+          <select id="margin">
+            <option value="0">여백 없음 (0mm)</option>
+            <option value="10" selected>기본 여백 (10mm)</option>
+            <option value="20">넓은 여백 (20mm)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <div class="quality-row">
+            <label style="margin:0;">이미지 압축 품질</label>
+            <span class="quality-badge" id="qualityVal">90%</span>
+          </div>
+          <input type="range" id="imageQuality" min="10" max="100" value="90">
+          <div class="hint">품질이 낮을수록 PDF 파일 용량이 작아집니다.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="fileName">저장 파일명</label>
+          <div class="filename-wrap">
+            <input type="text" id="fileName" value="merged_images" placeholder="파일명을 입력하세요">
+            <span class="ext">.pdf</span>
+          </div>
+        </div>
+
+        <button id="btnConvert" class="primary btn-active" disabled>다운로드</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 변환 중 오버레이 모달 -->
+  <div id="progressModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="spinner">⏳</div>
+      <h3>PDF 변환 중</h3>
+      <p>이미지를 고품질로 렌더링하고 압축하는 중입니다...</p>
+      <div class="size-bar-track"><div class="size-bar-fill" id="progressBar"></div></div>
+      <div class="progress-labels">
+        <span id="progressText">0% 완료</span>
+        <span id="progressRatio">0 / 0 장</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer"></div>
+
+  <script>
+    // 전역 상태 변수
+    let uploadedFiles = []; // { id, name, dataUrl, width, height, checked }
+    let fileIdCounter = 0;
+
+    // DOM 요소 캐싱
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const imageList = document.getElementById('imageList');
+    const emptyState = document.getElementById('emptyState');
+    const listControls = document.getElementById('listControls');
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const totalCountSpan = document.getElementById('totalCount');
+    const btnClearAll = document.getElementById('btnClearAll');
+    const btnConvert = document.getElementById('btnConvert');
+
+    // 설정 컨트롤 캐싱
+    const pageSizeSelect = document.getElementById('pageSize');
+    const orientPortrait = document.getElementById('orientPortrait');
+    const orientLandscape = document.getElementById('orientLandscape');
+    const marginSelect = document.getElementById('margin');
+    const imageQualityInput = document.getElementById('imageQuality');
+    const qualityVal = document.getElementById('qualityVal');
+    const fileNameInput = document.getElementById('fileName');
+
+    // 진행률 모달 캐싱
+    const progressModal = document.getElementById('progressModal');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const progressRatio = document.getElementById('progressRatio');
+
+    // 초기화
+    window.addEventListener('DOMContentLoaded', () => {
+      setupDragAndDrop();
+      setupRadioButtons();
+
+      // SortableJS 초기화 (드래그 앤 드롭 순서 변경)
+      new Sortable(imageList, {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        filter: '.no-drag',
+        onEnd: function () {
+          reorderFilesFromDOM();
+        }
+      });
+
+      fileInput.addEventListener('change', handleFileSelect);
+      dropzone.addEventListener('click', () => fileInput.click());
+      selectAllCheckbox.addEventListener('change', handleSelectAll);
+      btnClearAll.addEventListener('click', clearAllImages);
+      btnConvert.addEventListener('click', generatePDF);
+      imageQualityInput.addEventListener('input', (e) => {
+        qualityVal.textContent = `${e.target.value}%`;
+      });
+      pageSizeSelect.addEventListener('change', handlePageSizeChange);
+    });
+
+    // 라디오 버튼 커스텀 UI 핸들러
+    function setupRadioButtons() {
+      const pairs = [
+        [orientPortrait, document.getElementById('orientPortraitWrap')],
+        [orientLandscape, document.getElementById('orientLandscapeWrap')]
+      ];
+      pairs.forEach(([radio, wrap]) => {
+        radio.addEventListener('change', () => {
+          pairs.forEach(([r, w]) => w.classList.toggle('checked', r.checked));
+        });
+      });
+    }
+
+    // 페이지 크기 종류가 'original'인 경우 방향 설정 비활성화
+    function handlePageSizeChange() {
+      const isOriginal = pageSizeSelect.value === 'original';
+      orientPortrait.disabled = isOriginal;
+      orientLandscape.disabled = isOriginal;
+
+      const portraitWrap = document.getElementById('orientPortraitWrap');
+      const landscapeWrap = document.getElementById('orientLandscapeWrap');
+      portraitWrap.classList.toggle('disabled', isOriginal);
+      landscapeWrap.classList.toggle('disabled', isOriginal);
+    }
+
+    // 드래그 앤 드롭 이벤트 설정
+    function setupDragAndDrop() {
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('drag-over');
+        }, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('drag-over');
+        }, false);
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        handleFiles(dt.files);
+      }, false);
+    }
+
+    function handleFileSelect(e) {
+      handleFiles(e.target.files);
+      fileInput.value = '';
+    }
+
+    function handleFiles(files) {
+      const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+
+      if (imageFiles.length === 0) {
+        showToast('업로드할 수 있는 이미지 파일이 없습니다.', 'warning');
+        return;
+      }
+
+      let loadedCount = 0;
+      const totalToLoad = imageFiles.length;
+
+      imageFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = function (event) {
+          const dataUrl = event.target.result;
+          const img = new Image();
+          img.src = dataUrl;
+          img.onload = function () {
+            uploadedFiles.push({
+              id: ++fileIdCounter,
+              name: file.name,
+              dataUrl: dataUrl,
+              width: img.naturalWidth,
+              height: img.naturalHeight,
+              checked: true
+            });
+
+            loadedCount++;
+            if (loadedCount === totalToLoad) {
+              renderImageList();
+              showToast(`${totalToLoad}개의 이미지가 추가되었습니다.`, 'success');
+            }
+          };
+        };
+      });
+    }
+
+    function reorderFilesFromDOM() {
+      const items = imageList.querySelectorAll('.image-item');
+      const newOrderFiles = [];
+      items.forEach(item => {
+        const id = parseInt(item.getAttribute('data-id'));
+        const file = uploadedFiles.find(f => f.id === id);
+        if (file) newOrderFiles.push(file);
+      });
+      uploadedFiles = newOrderFiles;
+      updateCounters();
+    }
+
+    function handleSelectAll() {
+      const isChecked = selectAllCheckbox.checked;
+      uploadedFiles.forEach(file => { file.checked = isChecked; });
+      imageList.querySelectorAll('.item-checkbox').forEach(cb => { cb.checked = isChecked; });
+      updateCounters();
+    }
+
+    function toggleFileSelection(id, isChecked) {
+      const file = uploadedFiles.find(f => f.id === id);
+      if (file) file.checked = isChecked;
+      selectAllCheckbox.checked = uploadedFiles.every(f => f.checked);
+      updateCounters();
+    }
+
+    function deleteImage(id) {
+      uploadedFiles = uploadedFiles.filter(f => f.id !== id);
+      renderImageList();
+      showToast('이미지가 목록에서 제거되었습니다.', 'info');
+    }
+
+    function clearAllImages() {
+      if (uploadedFiles.length === 0) return;
+      if (confirm('목록의 모든 이미지를 지우시겠습니까?')) {
+        uploadedFiles = [];
+        renderImageList();
+        showToast('모든 이미지가 제거되었습니다.', 'info');
+      }
+    }
+
+    function updateCounters() {
+      const total = uploadedFiles.length;
+      const selected = uploadedFiles.filter(f => f.checked).length;
+
+      totalCountSpan.textContent = total;
+      selectedCountSpan.textContent = selected;
+
+      if (total > 0) {
+        emptyState.style.display = 'none';
+        listControls.classList.add('show');
+        btnConvert.disabled = (selected === 0);
+      } else {
+        emptyState.style.display = '';
+        listControls.classList.remove('show');
+        btnConvert.disabled = true;
+      }
+    }
+
+    function renderImageList() {
+      imageList.querySelectorAll('.image-item').forEach(item => item.remove());
+
+      if (uploadedFiles.length === 0) {
+        updateCounters();
+        return;
+      }
+
+      uploadedFiles.forEach(file => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'image-item';
+        itemDiv.setAttribute('data-id', file.id);
+
+        itemDiv.innerHTML = `
+          <div class="thumb-wrap">
+            <img src="${file.dataUrl}" alt="${file.name}">
+            <input type="checkbox" class="item-checkbox no-drag" ${file.checked ? 'checked' : ''}>
+            <button class="btn-delete no-drag" title="삭제">✕</button>
+          </div>
+          <div class="meta">
+            <div class="mname" title="${file.name}">${file.name}</div>
+            <div class="mdim">${file.width} × ${file.height} px</div>
+          </div>
+        `;
+
+        const checkbox = itemDiv.querySelector('.item-checkbox');
+        checkbox.addEventListener('change', (e) => toggleFileSelection(file.id, e.target.checked));
+
+        const deleteBtn = itemDiv.querySelector('.btn-delete');
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteImage(file.id);
+        });
+
+        imageList.appendChild(itemDiv);
+      });
+
+      updateCounters();
+    }
+
+    function showToast(message, type = 'info') {
+      const icons = { success: '✅', warning: '⚠️', error: '❌', info: 'ℹ️' };
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.innerHTML = `<span>${icons[type] || icons.info}</span><span>${message}</span>`;
+
+      document.getElementById('toastContainer').appendChild(toast);
+
+      setTimeout(() => toast.classList.add('show'), 10);
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    async function generatePDF() {
+      const filesToConvert = uploadedFiles.filter(f => f.checked);
+
+      if (filesToConvert.length === 0) {
+        showToast('PDF로 변환할 선택된 이미지가 없습니다.', 'warning');
+        return;
+      }
+
+      progressModal.classList.add('show');
+      progressBar.style.width = '0%';
+      progressText.textContent = '0% 완료';
+      progressRatio.textContent = `0 / ${filesToConvert.length} 장`;
+
+      const pageSize = pageSizeSelect.value;
+      const orientation = orientPortrait.checked ? 'p' : 'l';
+      const margin = parseFloat(marginSelect.value);
+      const quality = parseFloat(imageQualityInput.value) / 100;
+      let outputFileName = fileNameInput.value.trim();
+      if (!outputFileName) outputFileName = 'merged_images';
+
+      const { jsPDF } = window.jspdf;
+      let doc;
+
+      const ptToMm = 25.4 / 72;
+
+      try {
+        for (let i = 0; i < filesToConvert.length; i++) {
+          const file = filesToConvert[i];
+
+          const percent = Math.round((i / filesToConvert.length) * 100);
+          progressBar.style.width = `${percent}%`;
+          progressText.textContent = `${percent}% 완료`;
+          progressRatio.textContent = `${i + 1} / ${filesToConvert.length} 장`;
+
+          await new Promise(resolve => setTimeout(resolve, 50));
+
+          let finalPageSize = pageSize;
+          let finalOrientation = orientation;
+          let pageWidth, pageHeight;
+
+          if (pageSize === 'a4') {
+            pageWidth = orientation === 'p' ? 210 : 297;
+            pageHeight = orientation === 'p' ? 297 : 210;
+          } else if (pageSize === 'letter') {
+            pageWidth = orientation === 'p' ? 215.9 : 279.4;
+            pageHeight = orientation === 'p' ? 279.4 : 215.9;
+          } else {
+            pageWidth = file.width * ptToMm;
+            pageHeight = file.height * ptToMm;
+            finalPageSize = [pageWidth, pageHeight];
+            finalOrientation = pageWidth > pageHeight ? 'l' : 'p';
+          }
+
+          if (i === 0) {
+            doc = new jsPDF({
+              orientation: finalOrientation,
+              unit: 'mm',
+              format: finalPageSize,
+              compress: true
+            });
+          } else {
+            doc.addPage(finalPageSize, finalOrientation);
+          }
+
+          const actualMargin = pageSize === 'original' ? 0 : margin;
+          const availableWidth = pageWidth - (actualMargin * 2);
+          const availableHeight = pageHeight - (actualMargin * 2);
+
+          const imgRatio = file.width / file.height;
+          const pageRatio = availableWidth / availableHeight;
+
+          let drawWidth = availableWidth;
+          let drawHeight = availableHeight;
+          let offsetX = actualMargin;
+          let offsetY = actualMargin;
+
+          if (pageSize !== 'original') {
+            if (imgRatio > pageRatio) {
+              drawWidth = availableWidth;
+              drawHeight = availableWidth / imgRatio;
+              offsetY = actualMargin + (availableHeight - drawHeight) / 2;
+            } else {
+              drawHeight = availableHeight;
+              drawWidth = availableHeight * imgRatio;
+              offsetX = actualMargin + (availableWidth - drawWidth) / 2;
+            }
+          }
+
+          let imgFormat = 'JPEG';
+          if (file.name.toLowerCase().endsWith('.png')) {
+            imgFormat = 'PNG';
+          } else if (file.name.toLowerCase().endsWith('.webp')) {
+            imgFormat = 'WEBP';
+          }
+
+          doc.addImage(
+            file.dataUrl,
+            imgFormat,
+            offsetX,
+            offsetY,
+            drawWidth,
+            drawHeight,
+            undefined,
+            quality > 0.9 ? 'FAST' : 'SLOW'
+          );
+        }
+
+        progressBar.style.width = '100%';
+        progressText.textContent = '100% 완료';
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        doc.save(`${outputFileName}.pdf`);
+        showToast('성공적으로 PDF로 합치고 다운로드하였습니다.', 'success');
+
+      } catch (err) {
+        console.error(err);
+        showToast('PDF 변환 및 병합 도중 에러가 발생했습니다.', 'error');
+      } finally {
+        progressModal.classList.remove('show');
+      }
+    }
+  </script>
+</body>
+</html>
